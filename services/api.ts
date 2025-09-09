@@ -45,7 +45,9 @@ export const purchaseTicket = async (eventId: string, ownerEmail: string, userId
         alert(`Purchase failed: ${error.message}`); // Show specific error to user
         return null;
     }
-    return data as Ticket;
+    // RPC returns the ticket record directly, but it's nested inside a 'data' array from the client
+    // The actual function returns a single record, so we assume it's the first element.
+    return Array.isArray(data) ? data[0] as Ticket : data as Ticket;
 };
 
 
@@ -84,7 +86,7 @@ export const fetchTicketsForUser = async (userId: string): Promise<{ticket: Tick
 };
 
 
-// --- Auth Functions ---
+// --- Auth & Profile Functions ---
 
 export const getAppUser = async (supabaseUser: SupabaseUser): Promise<User | null> => {
     const { data: profile, error } = await supabase
@@ -105,6 +107,24 @@ export const getAppUser = async (supabaseUser: SupabaseUser): Promise<User | nul
         isAdmin: profile.is_admin
     };
 }
+
+export const updateUserProfile = async (userId: string, updates: { full_name: string }): Promise<{ user: User | null; error: Error | null }> => {
+    const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', userId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating profile:', error);
+        return { user: null, error: new Error(error.message) };
+    }
+    
+    // We need to get the full user object again to return it
+    const currentUser = await getCurrentUser();
+    return { user: currentUser, error: null };
+};
 
 
 export const onAuthStateChange = (callback: (user: User | null) => void) => {

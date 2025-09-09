@@ -30,6 +30,15 @@ const LinkIcon: React.FC<{className?: string}> = ({ className }) => (
 const MailIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
 );
+const SearchIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+);
+const CheckCircleIcon: React.FC<{className?: string}> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+);
+const AlertTriangleIcon: React.FC<{className?: string}> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+);
 
 
 // --- APP CONTEXT ---
@@ -43,8 +52,12 @@ interface AppContextType {
   logout: () => Promise<void>;
   login: (email: string, password: string) => Promise<string | null>;
   signup: (email: string, password: string, fullName: string) => Promise<string | null>;
+  showToast: (message: string, type?: 'success' | 'error') => void;
+  updateUser: (updatedUser: User) => void;
 }
 const AppContext = createContext<AppContextType | null>(null);
+
+type ToastMessage = { message: string; type: 'success' | 'error' };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,6 +65,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
     // Check for existing session on app load
@@ -102,12 +116,22 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
   const showAuthModal = () => setAuthModalOpen(true);
 
-  const value = { user, tickets, loading, sessionChecked, login, signup, logout, addTicket, showAuthModal };
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+  };
+
+  const value = { user, tickets, loading, sessionChecked, login, signup, logout, addTicket, showAuthModal, showToast, updateUser };
 
   return (
     <AppContext.Provider value={value}>
       {children}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
     </AppContext.Provider>
   );
 };
@@ -124,6 +148,26 @@ const Spinner: React.FC = () => (
     <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
   </div>
 );
+
+const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void; }> = ({ message, type, onDismiss }) => {
+    const isSuccess = type === 'success';
+    const bgColor = isSuccess ? 'bg-primary' : 'bg-secondary';
+    const Icon = isSuccess ? CheckCircleIcon : AlertTriangleIcon;
+
+    return (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+            <div className={`flex items-center gap-4 text-white p-4 rounded-lg shadow-2xl bg-gray-dark border border-gray-medium`}>
+                <div className={`p-1 rounded-full ${bgColor}`}>
+                    <Icon className="w-6 h-6 text-white"/>
+                </div>
+                <p className="font-semibold">{message}</p>
+                <button onClick={onDismiss} className="text-gray-light hover:text-white">
+                    <XIcon className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
+    );
+};
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { login, signup } = useAppContext();
@@ -375,12 +419,15 @@ const Header: React.FC = () => {
                     <button onClick={handleMyTicketsClick} className="text-gray-light hover:text-white transition-colors font-medium bg-transparent border-none p-0 cursor-pointer">My Tickets</button>
                     {user ? (
                         <>
-                            {user.isAdmin ? (
+                            {user.isAdmin && (
                                 <Link to="/admin" className="text-gray-light hover:text-white transition-colors font-medium">Admin</Link>
-                            ) : (
-                                <Link to="/dashboard" className="text-gray-light hover:text-white transition-colors font-medium">Dashboard</Link>
                             )}
-                            <button onClick={logout} className="bg-secondary text-white font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity">Logout</button>
+                            <div className="flex items-center gap-4">
+                               <Link to="/dashboard" className="flex items-center gap-2 text-gray-light hover:text-white transition-colors font-medium">
+                                 <UserIcon className="w-5 h-5"/> {user.fullName.split(' ')[0]}
+                               </Link>
+                               <button onClick={logout} className="bg-secondary text-white font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity">Logout</button>
+                            </div>
                         </>
                     ) : (
                         <button onClick={showAuthModal} className="flex items-center gap-2 bg-primary hover:bg-primary-focus text-white font-bold py-2 px-4 rounded-md transition-colors">
@@ -468,9 +515,17 @@ const EventsPage: React.FC = () => {
                 </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredEvents.map(event => <EventCard key={event.id} event={event} />)}
-            </div>
+            {filteredEvents.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {filteredEvents.map(event => <EventCard key={event.id} event={event} />)}
+                </div>
+            ) : (
+                <div className="text-center py-16 bg-gray-dark rounded-lg">
+                    <SearchIcon className="w-16 h-16 text-gray-medium mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-white">No Events Found</h2>
+                    <p className="text-gray-light mt-2">Try adjusting your search or filters to find what you're looking for.</p>
+                </div>
+            )}
         </div>
     );
 };
@@ -629,19 +684,35 @@ const MyTicketsPage: React.FC = () => {
 };
 
 const UserDashboardPage: React.FC = () => {
-    const { user, sessionChecked } = useAppContext();
+    const { user, sessionChecked, showToast, updateUser } = useAppContext();
     const navigate = useNavigate();
     const [fullName, setFullName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (sessionChecked && !user) {
             navigate('/');
-        } else if (sessionChecked && user?.isAdmin) {
-            navigate('/admin');
         } else if (user) {
              setFullName(user.fullName);
         }
     }, [user, sessionChecked, navigate]);
+    
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || fullName === user.fullName) return;
+
+        setIsSubmitting(true);
+        const { user: updatedUser, error } = await api.updateUserProfile(user.id, { full_name: fullName });
+        setIsSubmitting(false);
+
+        if (error) {
+            showToast(error.message, 'error');
+        } else if (updatedUser) {
+            updateUser(updatedUser);
+            showToast('Profile updated successfully!');
+        }
+    };
+
 
     if (!user || !sessionChecked) {
         return <div className="h-[80vh]"><Spinner/></div>;
@@ -658,7 +729,7 @@ const UserDashboardPage: React.FC = () => {
                           <p className="text-gray-light">Manage your account details.</p>
                      </div>
                 </div>
-                <form>
+                <form onSubmit={handleSubmit}>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-light mb-2">Full Name</label>
@@ -670,8 +741,8 @@ const UserDashboardPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="mt-8">
-                        <button type="submit" className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium">
-                            Update Profile
+                        <button type="submit" disabled={isSubmitting || fullName === user.fullName} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium disabled:cursor-not-allowed">
+                            {isSubmitting ? 'Updating...' : 'Update Profile'}
                         </button>
                     </div>
                 </form>
@@ -681,7 +752,7 @@ const UserDashboardPage: React.FC = () => {
 };
 
 const AdminDashboardPage: React.FC = () => {
-    const { user, sessionChecked } = useAppContext();
+    const { user, sessionChecked, showToast } = useAppContext();
     const navigate = useNavigate();
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -714,10 +785,10 @@ const AdminDashboardPage: React.FC = () => {
         const createdEvent = await api.createEvent(newEventData as any);
         setIsSubmitting(false);
         if (createdEvent) {
-             alert('Event created successfully!');
+            showToast('Event created successfully!');
             navigate(`/event/${createdEvent.id}`);
         } else {
-            alert('Failed to create event.');
+            showToast('Failed to create event.', 'error');
         }
     };
     
