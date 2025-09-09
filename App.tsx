@@ -24,6 +24,10 @@ const LogInIcon: React.FC<{className?: string}> = ({ className }) => (
 const UserIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
 );
+const TagIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"></path><path d="M7 7h.01"></path></svg>
+);
+
 
 // --- APP CONTEXT ---
 interface AppContextType {
@@ -31,7 +35,7 @@ interface AppContextType {
   tickets: Ticket[];
   loading: boolean;
   login: (email: string) => Promise<void>;
-  signup: (email: string) => Promise<void>;
+  signup: (email: string, fullName: string) => Promise<void>;
   logout: () => Promise<void>;
   addTicket: (ticket: Ticket) => void;
   showAuthModal: () => void;
@@ -68,9 +72,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setLoading(false);
   };
   
-  const signup = async (email: string) => {
+  const signup = async (email: string, fullName: string) => {
     setLoading(true);
-    const { user: signedUpUser, error } = await api.signUp(email);
+    const { user: signedUpUser, error } = await api.signUp(email, fullName);
     if (signedUpUser) {
       setUser(signedUpUser);
       setAuthModalOpen(false);
@@ -118,6 +122,7 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
   const { login, signup, loading } = useAppContext();
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState(''); // Password is not used in mock, but essential for real UI
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -125,9 +130,18 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
     if (isLoginView) {
       login(email);
     } else {
-      signup(email);
+      signup(email, fullName);
     }
   };
+  
+  useEffect(() => {
+    if (isOpen) {
+        setEmail('');
+        setFullName('');
+        setPassword('');
+    }
+  }, [isOpen, isLoginView]);
+
 
   if (!isOpen) return null;
 
@@ -140,10 +154,13 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
         <h2 className="text-2xl font-bold text-center mb-4 text-white">{isLoginView ? 'Welcome Back' : 'Create Account'}</h2>
         <p className="text-center text-gray-light mb-6">{isLoginView ? 'Sign in to manage your tickets.' : 'Get started with TopCityTickets.'}</p>
         
-        <form onSubmit={handleSubmit}>
-          <input type="email" placeholder="Email (e.g., user@topcitytickets.io)" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 mb-4 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 mb-6 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
-          <button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLoginView && (
+             <input type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
+          )}
+          <input type="email" placeholder="Email (e.g., user@topcitytickets.io)" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
+          <button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium !mt-6">
             {loading ? 'Processing...' : (isLoginView ? 'Login' : 'Sign Up')}
           </button>
         </form>
@@ -291,7 +308,7 @@ const Header: React.FC = () => {
 };
 
 const EventCard: React.FC<{ event: Event }> = ({ event }) => (
-    <Link to={`/event/${event.id}`} className="bg-gray-dark rounded-lg overflow-hidden group transition-transform duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-primary/20">
+    <Link to={`/event/${event.id}`} className="bg-gray-dark rounded-lg overflow-hidden group transition-transform duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-primary/20 flex flex-col">
         <div className="relative">
             <img src={event.imageUrl} alt={event.title} className="w-full h-48 object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
@@ -299,15 +316,18 @@ const EventCard: React.FC<{ event: Event }> = ({ event }) => (
                 <span className="bg-secondary text-white text-xs font-bold px-2 py-1 rounded">{event.category}</span>
             </div>
         </div>
-        <div className="p-4">
+        <div className="p-4 flex flex-col flex-grow">
             <h3 className="text-lg font-bold text-white mb-2 truncate">{event.title}</h3>
-            <div className="flex items-center text-gray-light text-sm mb-2">
-                <CalendarIcon className="w-4 h-4 mr-2 text-primary" />
-                <span>{new Date(event.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-             <div className="flex items-center text-gray-light text-sm">
-                <MapPinIcon className="w-4 h-4 mr-2 text-primary" />
-                <span className="truncate">{event.location}</span>
+            <p className="text-sm text-gray-light mb-3">by <span className="font-semibold">{event.organizer}</span></p>
+            <div className="flex-grow">
+                <div className="flex items-center text-gray-light text-sm mb-2">
+                    <CalendarIcon className="w-4 h-4 mr-2 text-primary" />
+                    <span>{new Date(event.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+                <div className="flex items-center text-gray-light text-sm">
+                    <MapPinIcon className="w-4 h-4 mr-2 text-primary" />
+                    <span className="truncate">{event.location}</span>
+                </div>
             </div>
         </div>
     </Link>
@@ -385,6 +405,8 @@ const EventDetailPage: React.FC = () => {
 
     if (loading) return <div className="h-[80vh]"><Spinner /></div>;
     if (!event) return <NotFoundPage />;
+    
+    const ticketsRemaining = event.capacity ? event.capacity - event.ticketsSold : null;
 
     return (
         <>
@@ -394,13 +416,21 @@ const EventDetailPage: React.FC = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-dark to-transparent"></div>
                     <div className="absolute bottom-8 left-8">
                         <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight">{event.title}</h1>
+                        <p className="text-xl text-gray-light mt-1">by <span className="font-semibold">{event.organizer}</span></p>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2">
-                        <h2 className="text-2xl font-bold text-white mb-4">About this event</h2>
-                        <p className="text-gray-light leading-relaxed">{event.description}</p>
+                        <h2 className="text-2xl font-bold text-white mb-4">About This Event</h2>
+                        <p className="text-gray-light leading-relaxed whitespace-pre-wrap">{event.description}</p>
+                        
+                        <h3 className="text-xl font-bold text-white mt-8 mb-4">Tags</h3>
+                        <div className="flex flex-wrap gap-2">
+                            {event.tags.map(tag => (
+                                <span key={tag} className="bg-gray-dark text-primary border border-primary/50 text-sm font-medium px-3 py-1 rounded-full">{tag}</span>
+                            ))}
+                        </div>
                     </div>
                     <div>
                         <div className="bg-gray-dark rounded-lg p-6 sticky top-24">
@@ -418,9 +448,22 @@ const EventDetailPage: React.FC = () => {
                                     <p className="text-gray-light">{event.location}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setPurchaseModalOpen(true)} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors text-lg">
-                                Buy Ticket - ${event.price.toFixed(2)}
-                            </button>
+                            {ticketsRemaining !== null && ticketsRemaining <= 0 ? (
+                                <div className="w-full text-center bg-secondary text-white font-bold py-3 rounded-md text-lg">
+                                    Sold Out
+                                </div>
+                            ) : (
+                                <>
+                                <button onClick={() => setPurchaseModalOpen(true)} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors text-lg">
+                                    Buy Ticket - ${event.price.toFixed(2)}
+                                </button>
+                                {ticketsRemaining !== null && (
+                                     <p className={`text-center mt-3 text-sm font-medium ${ticketsRemaining < 20 ? 'text-secondary animate-pulse' : 'text-gray-light'}`}>
+                                         Only {ticketsRemaining} tickets left!
+                                     </p>
+                                )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -448,7 +491,7 @@ const TicketCard: React.FC<{ ticket: Ticket; event: Event }> = ({ ticket, event 
                 </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-medium text-xs text-gray-light">
-                Purchased on: {new Date(ticket.purchaseDate).toLocaleDateString()}
+                Purchased on: {new Date(ticket.purchaseDate).toLocaleDateString()} for {ticket.ownerEmail}
             </div>
         </div>
         <div className="bg-dark p-6 flex flex-col items-center justify-center">
@@ -515,6 +558,7 @@ const MyTicketsPage: React.FC = () => {
 const UserDashboardPage: React.FC = () => {
     const { user } = useAppContext();
     const navigate = useNavigate();
+    const [fullName, setFullName] = useState(user?.fullName || '');
 
     useEffect(() => {
         if (!user) {
@@ -523,6 +567,10 @@ const UserDashboardPage: React.FC = () => {
             navigate('/admin');
         }
     }, [user, navigate]);
+    
+    useEffect(() => {
+        setFullName(user?.fullName || '');
+    }, [user]);
 
     if (!user) {
         return <div className="h-[80vh]"><Spinner/></div>;
@@ -541,6 +589,10 @@ const UserDashboardPage: React.FC = () => {
                 </div>
                 <form>
                     <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-light mb-2">Full Name</label>
+                            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                        </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-light mb-2">Email</label>
                             <input type="email" value={user.email} disabled className="w-full bg-dark border border-gray-medium rounded-md p-3 text-gray-light cursor-not-allowed"/>
@@ -569,8 +621,11 @@ const AdminDashboardPage: React.FC = () => {
     const [description, setDescription] = useState('');
     const [date, setDate] = useState('');
     const [location, setLocation] = useState('');
+    const [organizer, setOrganizer] = useState('');
     const [category, setCategory] = useState('Music');
-    const [price, setPrice] = useState('0');
+    const [price, setPrice] = useState('');
+    const [capacity, setCapacity] = useState('');
+    const [tags, setTags] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -583,9 +638,11 @@ const AdminDashboardPage: React.FC = () => {
         e.preventDefault();
         setIsSubmitting(true);
         const newEventData = {
-            title, description, date, location, category, 
+            title, description, date, location, category, organizer, 
             price: parseFloat(price),
-            imageUrl: `https://picsum.photos/seed/${title.replace(/\s+/g, '-')}/1600/900`,
+            imageUrl: `https://picsum.photos/seed/${encodeURIComponent(title)}/1600/900`,
+            tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+            capacity: capacity ? parseInt(capacity, 10) : undefined,
         };
         await api.createEvent(newEventData);
         setIsSubmitting(false);
@@ -596,16 +653,21 @@ const AdminDashboardPage: React.FC = () => {
     return (
         <div className="container mx-auto px-6 py-8">
             <h1 className="text-4xl font-extrabold text-white mb-8">Admin Dashboard</h1>
-            <div className="bg-gray-dark p-8 rounded-lg max-w-2xl mx-auto">
+            <div className="bg-gray-dark p-8 rounded-lg max-w-3xl mx-auto">
                 <h2 className="text-2xl font-bold text-white mb-6 -mt-2">Create New Event</h2>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-light mb-2">Event Title</label>
-                        <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-light mb-2">Event Title</label>
+                            <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-light mb-2">Organizer</label>
+                            <input type="text" value={organizer} onChange={e => setOrganizer(e.target.value)} required className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                        </div>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-light mb-2">Description</label>
-                        {/* FIX: Corrected typo from `e.taget.value` to `e.target.value` */}
                         <textarea value={description} onChange={e => setDescription(e.target.value)} required rows={4} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"></textarea>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -621,14 +683,24 @@ const AdminDashboardPage: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div>
                             <label className="block text-sm font-medium text-gray-light mb-2">Category</label>
-                            <input type="text" value={category} onChange={e => setCategory(e.target.value)} required className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                            <input type="text" value={category} onChange={e => setCategory(e.target.value)} required placeholder="e.g., Music, Tech, Art" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
                         </div>
                          <div>
-                            <label className="block text-sm font-medium text-gray-light mb-2">Price</label>
-                            <input type="number" value={price} onChange={e => setPrice(e.target.value)} required min="0" step="0.01" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                            <label className="block text-sm font-medium text-gray-light mb-2">Tags <span className="text-xs text-gray-medium">(comma-separated)</span></label>
+                            <input type="text" value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g., live-music, rock" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
                         </div>
                     </div>
-                    <button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div>
+                            <label className="block text-sm font-medium text-gray-light mb-2">Price ($)</label>
+                            <input type="number" value={price} onChange={e => setPrice(e.target.value)} required min="0" step="0.01" placeholder="e.g., 75.00" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-light mb-2">Capacity <span className="text-xs text-gray-medium">(optional)</span></label>
+                            <input type="number" value={capacity} onChange={e => setCapacity(e.target.value)} min="0" step="1" placeholder="e.g., 500" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
+                        </div>
+                    </div>
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium !mt-8">
                         {isSubmitting ? 'Creating...' : 'Create Event'}
                     </button>
                 </form>
@@ -639,35 +711,22 @@ const AdminDashboardPage: React.FC = () => {
 
 const NotFoundPage: React.FC = () => (
     <div className="text-center py-20">
-        <h1 className="text-6xl font-extrabold text-primary">404</h1>
-        <p className="text-2xl text-white mt-4">Page Not Found</p>
-        <p className="text-gray-light mt-2">The page you're looking for doesn't exist.</p>
+        <h1 className="text-6xl font-extrabold text-white">404</h1>
+        <p className="text-2xl text-gray-light mt-4">Page Not Found</p>
         <Link to="/" className="mt-8 inline-block bg-primary hover:bg-primary-focus text-white font-bold py-3 px-6 rounded-md transition-colors">
             Go Home
         </Link>
     </div>
 );
 
-// --- MAIN APP COMPONENT ---
 
-export default function App() {
+const App: React.FC = () => {
   return (
-    <AppProvider>
-      <HashRouter>
-        <div className="min-h-screen bg-dark text-light flex flex-col">
+    <HashRouter>
+      <AppProvider>
+        <div className="min-h-screen text-white flex flex-col">
           <Header />
           <main className="flex-grow">
             <Routes>
               <Route path="/" element={<EventsPage />} />
-              <Route path="/event/:id" element={<EventDetailPage />} />
-              <Route path="/my-tickets" element={<MyTicketsPage />} />
-              <Route path="/dashboard" element={<UserDashboardPage />} />
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </main>
-        </div>
-      </HashRouter>
-    </AppProvider>
-  );
-}
+              <Route path
