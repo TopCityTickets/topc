@@ -729,4 +729,17 @@ const App: React.FC = () => {
           <main className="flex-grow">
             <Routes>
               <Route path="/" element={<EventsPage />} />
-              <Route path
+              <Route path="/event/:id" element={<EventDetailPage />} />
+              <Route path="/my-tickets" element={<MyTicketsPage />} />
+              <Route path="/dashboard" element={<UserDashboardPage />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </main>
+        </div>
+      </AppProvider>
+    </HashRouter>
+  );
+};
+
+export default App;
