@@ -1,0 +1,5 @@
+{
+  "name": "TopCityTickets",
+  "description": "A modern event ticketing platform frontend named TopCityTickets, designed for seamless integration with Supabase. Users can browse, search, and purchase tickets for events. Features include unique shareable event links, user authentication, and a personal ticket management page.",
+  "requestFramePermissions": []
+}
