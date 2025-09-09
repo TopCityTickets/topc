@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, createContext, useContext, useCallback, useMemo } from 'react';
-import { HashRouter, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, useParams, useNavigate, Outlet } from 'react-router-dom';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { Event, Ticket, User } from './types';
 import * as api from './services/mockApi';
@@ -27,7 +27,9 @@ const UserIcon: React.FC<{className?: string}> = ({ className }) => (
 const TagIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"></path><path d="M7 7h.01"></path></svg>
 );
-
+const LinkIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"></path></svg>
+);
 
 // --- APP CONTEXT ---
 interface AppContextType {
@@ -176,6 +178,25 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
   );
 };
 
+const CopyToClipboardButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
+    const [copied, setCopied] = useState(false);
+    const handleCopy = () => {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    return (
+        <button 
+            onClick={handleCopy} 
+            className="flex items-center gap-2 text-sm bg-gray-medium/20 hover:bg-gray-medium/40 text-white font-semibold py-2 px-3 rounded-md transition-colors"
+        >
+            <LinkIcon className="w-4 h-4" />
+            <span>{copied ? 'Copied!' : 'Copy Share Link'}</span>
+        </button>
+    );
+};
 
 const TicketPurchaseModal: React.FC<{ isOpen: boolean; onClose: () => void; event: Event | null }> = ({ isOpen, onClose, event }) => {
     const { user, addTicket, showAuthModal } = useAppContext();
@@ -203,6 +224,7 @@ const TicketPurchaseModal: React.FC<{ isOpen: boolean; onClose: () => void; even
     const handleClose = () => {
         setPurchasedTicket(null);
         setIsProcessing(false);
+        setEmail(user?.email || '');
         onClose();
     }
     
@@ -224,9 +246,12 @@ const TicketPurchaseModal: React.FC<{ isOpen: boolean; onClose: () => void; even
                         </div>
                         <p className="text-xs text-gray-medium mt-2">{purchasedTicket.id}</p>
                         <p className="mt-4 text-gray-light">A confirmation has been sent to <strong>{purchasedTicket.ownerEmail}</strong>.</p>
-                        <button onClick={handleClose} className="mt-6 w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors">
-                            Close
-                        </button>
+                        <div className="mt-6 flex flex-col items-center gap-4">
+                           <CopyToClipboardButton textToCopy={`${window.location.origin}${window.location.pathname}#/ticket/${purchasedTicket.id}`} />
+                           <button onClick={handleClose} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors">
+                                Close
+                           </button>
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -490,8 +515,12 @@ const TicketCard: React.FC<{ ticket: Ticket; event: Event }> = ({ ticket, event 
                     <span className="truncate">{event.location}</span>
                 </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-medium text-xs text-gray-light">
-                Purchased on: {new Date(ticket.purchaseDate).toLocaleDateString()} for {ticket.ownerEmail}
+            <div className="mt-4 pt-4 border-t border-gray-medium flex justify-between items-center">
+                 <div className="text-xs text-gray-light">
+                    Purchased: {new Date(ticket.purchaseDate).toLocaleDateString()}<br/>
+                    For: {ticket.ownerEmail}
+                </div>
+                <CopyToClipboardButton textToCopy={`${window.location.origin}${window.location.pathname}#/ticket/${ticket.id}`} />
             </div>
         </div>
         <div className="bg-dark p-6 flex flex-col items-center justify-center">
@@ -719,23 +748,92 @@ const NotFoundPage: React.FC = () => (
     </div>
 );
 
+const ShareableTicketPage: React.FC = () => {
+    const { ticketId } = useParams<{ ticketId: string }>();
+    const [ticketData, setTicketData] = useState<{ ticket: Ticket; event: Event } | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (ticketId) {
+            api.fetchTicketById(ticketId).then(data => {
+                setTicketData(data);
+                setLoading(false);
+            });
+        }
+    }, [ticketId]);
+
+    if (loading) return <div className="bg-dark h-screen"><Spinner /></div>;
+    if (!ticketData) return <NotFoundPage />; // Or a specific "Ticket not found" page
+
+    const { ticket, event } = ticketData;
+
+    return (
+        <div className="bg-dark min-h-screen flex items-center justify-center py-12 px-4">
+            <div className="max-w-2xl w-full space-y-8 bg-gray-dark rounded-2xl shadow-2xl p-8 md:p-10 animate-fade-in">
+                <div className="text-center">
+                    <p className="text-primary font-bold">{event.category}</p>
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-white mt-2">{event.title}</h1>
+                    <p className="text-gray-light mt-2">Present this QR code at the event for entry.</p>
+                </div>
+                
+                <div className="bg-dark p-6 rounded-lg flex flex-col md:flex-row items-center gap-8">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-4">
+                            <CalendarIcon className="w-6 h-6 text-primary flex-shrink-0" />
+                            <div>
+                                <h3 className="font-bold text-white">Date and Time</h3>
+                                <p className="text-gray-light">{new Date(event.date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <MapPinIcon className="w-6 h-6 text-primary flex-shrink-0" />
+                            <div>
+                                <h3 className="font-bold text-white">Location</h3>
+                                <p className="text-gray-light">{event.location}</p>
+                            </div>
+                        </div>
+                    </div>
+                     <div className="flex flex-col items-center">
+                         <div className="bg-white p-3 rounded-lg">
+                            <QRCodeCanvas value={ticket.id} size={160} />
+                         </div>
+                         <p className="text-xs text-gray-medium mt-2 break-all w-40 text-center">{ticket.id}</p>
+                    </div>
+                </div>
+
+                <div className="text-center text-sm text-gray-medium">
+                    <p>Ticket issued to: <strong>{ticket.ownerEmail}</strong></p>
+                    <p className="mt-2">Powered by TopCityTickets</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AppLayout: React.FC = () => (
+    <>
+        <Header />
+        <Outlet />
+    </>
+);
+
 
 const App: React.FC = () => {
   return (
     <HashRouter>
       <AppProvider>
         <div className="min-h-screen text-white flex flex-col">
-          <Header />
-          <main className="flex-grow">
-            <Routes>
+          <Routes>
+            <Route element={<AppLayout />}>
               <Route path="/" element={<EventsPage />} />
               <Route path="/event/:id" element={<EventDetailPage />} />
               <Route path="/my-tickets" element={<MyTicketsPage />} />
               <Route path="/dashboard" element={<UserDashboardPage />} />
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </main>
+            </Route>
+            <Route path="/ticket/:ticketId" element={<ShareableTicketPage />} />
+          </Routes>
         </div>
       </AppProvider>
     </HashRouter>

@@ -64,6 +64,20 @@ export const purchaseTicket = async (eventId: string, ownerEmail: string, userId
   return delay(newTicket);
 };
 
+export const fetchTicketById = async (id: string): Promise<{ ticket: Ticket; event: Event } | null> => {
+    console.log(`API: Fetching ticket with id: ${id}`);
+    const ticket = mockTickets.find(t => t.id === id);
+    if (!ticket) {
+        return delay(null);
+    }
+    const event = mockEvents.find(e => e.id === ticket.eventId);
+    if (!event) {
+        // This case might happen if an event is deleted but tickets remain.
+        return delay(null);
+    }
+    return delay({ ticket, event });
+};
+
 // --- Auth Functions (mimicking Supabase) ---
 
 export const signInWithPassword = async (email: string): Promise<{ user: User | null; error: string | null }> => {
