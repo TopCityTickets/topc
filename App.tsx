@@ -3,7 +3,7 @@ import React, { useState, useEffect, createContext, useContext, useCallback, use
 import { HashRouter, Routes, Route, Link, useParams, useNavigate, Outlet } from 'react-router-dom';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { Event, Ticket, User } from './types';
-import * as api from './services/mockApi';
+import * as api from './services/api';
 
 // ICONS (to avoid extra dependencies and files)
 const CalendarIcon: React.FC<{className?: string}> = ({ className }) => (
@@ -24,31 +24,46 @@ const LogInIcon: React.FC<{className?: string}> = ({ className }) => (
 const UserIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
 );
-const TagIcon: React.FC<{className?: string}> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"></path><path d="M7 7h.01"></path></svg>
-);
 const LinkIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"></path></svg>
 );
+const MailIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+);
+
 
 // --- APP CONTEXT ---
 interface AppContextType {
   user: User | null;
-  tickets: Ticket[];
+  tickets: { ticket: Ticket; event: Event }[];
   loading: boolean;
-  login: (email: string) => Promise<void>;
-  signup: (email: string, fullName: string) => Promise<void>;
-  logout: () => Promise<void>;
-  addTicket: (ticket: Ticket) => void;
+  sessionChecked: boolean;
+  addTicket: (ticket: Ticket, event: Event) => void;
   showAuthModal: () => void;
+  logout: () => Promise<void>;
+  login: (email: string, password: string) => Promise<string | null>;
+  signup: (email: string, password: string, fullName: string) => Promise<string | null>;
 }
 const AppContext = createContext<AppContextType | null>(null);
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [tickets, setTickets] = useState<{ ticket: Ticket; event: Event }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    // Check for existing session on app load
+    api.getCurrentUser().then(currentUser => {
+      setUser(currentUser);
+      setSessionChecked(true);
+    });
+
+    // Listen for auth state changes (login, logout)
+    const unsubscribe = api.onAuthStateChange(setUser);
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -62,28 +77,18 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
   }, [user]);
 
-  const login = async (email: string) => {
-    setLoading(true);
-    const { user: loggedInUser, error } = await api.signInWithPassword(email);
-    if (loggedInUser) {
-      setUser(loggedInUser);
-      setAuthModalOpen(false);
-    } else {
-      alert(error); // In a real app, use a toast notification
-    }
-    setLoading(false);
+  const login = async (email: string, password: string) => {
+    const { error } = await api.signInWithPassword(email, password);
+    if (error) return error.message;
+    setAuthModalOpen(false);
+    return null;
   };
   
-  const signup = async (email: string, fullName: string) => {
-    setLoading(true);
-    const { user: signedUpUser, error } = await api.signUp(email, fullName);
-    if (signedUpUser) {
-      setUser(signedUpUser);
-      setAuthModalOpen(false);
-    } else {
-      alert(error);
-    }
-    setLoading(false);
+  const signup = async (email: string, password: string, fullName: string) => {
+    const { error } = await api.signUp(email, password, fullName);
+    if (error) return error.message;
+    // Don't close modal, AuthModal will show success message
+    return null;
   };
 
   const logout = async () => {
@@ -91,13 +96,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setUser(null);
   };
 
-  const addTicket = (ticket: Ticket) => {
-    setTickets(prev => [...prev, ticket]);
+  const addTicket = (ticket: Ticket, event: Event) => {
+    setTickets(prev => [{ ticket, event }, ...prev]);
   };
   
   const showAuthModal = () => setAuthModalOpen(true);
 
-  const value = { user, tickets, loading, login, signup, logout, addTicket, showAuthModal };
+  const value = { user, tickets, loading, sessionChecked, login, signup, logout, addTicket, showAuthModal };
 
   return (
     <AppContext.Provider value={value}>
@@ -121,36 +126,86 @@ const Spinner: React.FC = () => (
 );
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { login, signup, loading } = useAppContext();
+  const { login, signup } = useAppContext();
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
-  const [password, setPassword] = useState(''); // Password is not used in mock, but essential for real UI
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoginView) {
-      login(email);
-    } else {
-      signup(email, fullName);
+    setError(null);
+
+    if (!isLoginView && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
     }
+
+    setLoading(true);
+    let apiError: string | null = null;
+    if (isLoginView) {
+      apiError = await login(email, password);
+    } else {
+      apiError = await signup(email, password, fullName);
+      if (!apiError) {
+        setSignupSuccess(true);
+      }
+    }
+    
+    if (apiError) {
+      setError(apiError);
+    }
+    setLoading(false);
   };
+  
+  const resetState = useCallback(() => {
+    setIsLoginView(true);
+    setEmail('');
+    setFullName('');
+    setPassword('');
+    setConfirmPassword('');
+    setError(null);
+    setLoading(false);
+    setSignupSuccess(false);
+  }, []);
+
+  const handleClose = () => {
+    resetState();
+    onClose();
+  }
   
   useEffect(() => {
     if (isOpen) {
-        setEmail('');
-        setFullName('');
-        setPassword('');
+        resetState();
     }
-  }, [isOpen, isLoginView]);
+  }, [isOpen, resetState]);
 
 
   if (!isOpen) return null;
+  
+  if (signupSuccess) {
+    return (
+       <div className="fixed inset-0 bg-dark bg-opacity-75 flex items-center justify-center z-50 animate-fade-in">
+        <div className="bg-gray-dark rounded-lg shadow-xl p-8 w-full max-w-md relative animate-slide-up text-center">
+            <MailIcon className="w-16 h-16 text-primary mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white">Confirm your email</h2>
+            <p className="text-gray-light mt-4">We've sent a confirmation link to <strong>{email}</strong>. Please check your inbox (and spam folder) to complete your registration.</p>
+            <button onClick={handleClose} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors mt-8">
+                Close
+            </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-dark bg-opacity-75 flex items-center justify-center z-50 animate-fade-in">
       <div className="bg-gray-dark rounded-lg shadow-xl p-8 w-full max-w-md relative animate-slide-up">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-light hover:text-white">
+        <button onClick={handleClose} className="absolute top-4 right-4 text-gray-light hover:text-white">
           <XIcon className="w-6 h-6" />
         </button>
         <h2 className="text-2xl font-bold text-center mb-4 text-white">{isLoginView ? 'Welcome Back' : 'Create Account'}</h2>
@@ -160,8 +215,12 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
           {!isLoginView && (
              <input type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
           )}
-          <input type="email" placeholder="Email (e.g., user@topcitytickets.io)" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
           <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
+          {!isLoginView && (
+             <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary focus:border-primary" required />
+          )}
+          {error && <p className="text-secondary text-sm text-center">{error}</p>}
           <button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium !mt-6">
             {loading ? 'Processing...' : (isLoginView ? 'Login' : 'Sign Up')}
           </button>
@@ -169,7 +228,7 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
 
         <p className="text-center mt-6 text-gray-light">
           {isLoginView ? "Don't have an account?" : 'Already have an account?'}
-          <button onClick={() => setIsLoginView(!isLoginView)} className="text-primary font-semibold ml-2 hover:underline">
+          <button onClick={() => { setIsLoginView(!isLoginView); setError(null); }} className="text-primary font-semibold ml-2 hover:underline">
             {isLoginView ? 'Sign Up' : 'Login'}
           </button>
         </p>
@@ -200,24 +259,27 @@ const CopyToClipboardButton: React.FC<{ textToCopy: string }> = ({ textToCopy })
 
 const TicketPurchaseModal: React.FC<{ isOpen: boolean; onClose: () => void; event: Event | null }> = ({ isOpen, onClose, event }) => {
     const { user, addTicket, showAuthModal } = useAppContext();
-    const [email, setEmail] = useState(user?.email || '');
+    const [email, setEmail] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [purchasedTicket, setPurchasedTicket] = useState<Ticket | null>(null);
 
     useEffect(() => {
-        if (user?.email) {
-            setEmail(user.email);
+        if (isOpen) {
+            setEmail(user?.email || '');
         }
-    }, [user]);
+    }, [isOpen, user]);
 
     const handlePurchase = async () => {
         if (!event || !email) return;
         setIsProcessing(true);
         const newTicket = await api.purchaseTicket(event.id, email, user?.id || null);
-        if (user) {
-            addTicket(newTicket);
+        if (newTicket) {
+            if (user) {
+                // If the user is logged in, add the ticket to their local state.
+                addTicket(newTicket, event);
+            }
+            setPurchasedTicket(newTicket);
         }
-        setPurchasedTicket(newTicket);
         setIsProcessing(false);
     };
 
@@ -242,7 +304,7 @@ const TicketPurchaseModal: React.FC<{ isOpen: boolean; onClose: () => void; even
                         <h2 className="text-2xl font-bold text-white mb-2">Purchase Successful!</h2>
                         <p className="text-gray-light mb-6">Your ticket for {event?.title} has been confirmed.</p>
                         <div className="bg-white p-4 rounded-lg inline-block">
-                           <QRCodeCanvas value={purchasedTicket.id} size={160} />
+                           <QRCodeCanvas value={`${window.location.origin}${window.location.pathname}#/ticket/${purchasedTicket.id}`} size={160} />
                         </div>
                         <p className="text-xs text-gray-medium mt-2">{purchasedTicket.id}</p>
                         <p className="mt-4 text-gray-light">A confirmation has been sent to <strong>{purchasedTicket.ownerEmail}</strong>.</p>
@@ -277,7 +339,7 @@ const TicketPurchaseModal: React.FC<{ isOpen: boolean; onClose: () => void; even
                                 disabled={!!user}
                             />
                         </div>
-                        <button onClick={handlePurchase} disabled={isProcessing} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium">
+                        <button onClick={handlePurchase} disabled={isProcessing || !email} className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium disabled:cursor-not-allowed">
                             {isProcessing ? 'Processing...' : `Confirm Purchase ($${event?.price.toFixed(2)})`}
                         </button>
                     </>
@@ -313,8 +375,8 @@ const Header: React.FC = () => {
                     <button onClick={handleMyTicketsClick} className="text-gray-light hover:text-white transition-colors font-medium bg-transparent border-none p-0 cursor-pointer">My Tickets</button>
                     {user ? (
                         <>
-                            {user.app_metadata.is_admin ? (
-                                <Link to="/admin" className="text-gray-light hover:text-white transition-colors font-medium">Admin Dashboard</Link>
+                            {user.isAdmin ? (
+                                <Link to="/admin" className="text-gray-light hover:text-white transition-colors font-medium">Admin</Link>
                             ) : (
                                 <Link to="/dashboard" className="text-gray-light hover:text-white transition-colors font-medium">Dashboard</Link>
                             )}
@@ -375,7 +437,7 @@ const EventsPage: React.FC = () => {
 
     const filteredEvents = useMemo(() => {
         return events.filter(event => 
-            event.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
+            (event.title.toLowerCase().includes(searchTerm.toLowerCase()) || event.organizer.toLowerCase().includes(searchTerm.toLowerCase())) &&
             (categoryFilter === 'All' || event.category === categoryFilter)
         );
     }, [events, searchTerm, categoryFilter]);
@@ -422,7 +484,7 @@ const EventDetailPage: React.FC = () => {
     useEffect(() => {
         if (id) {
             api.fetchEventById(id).then(data => {
-                setEvent(data || null);
+                setEvent(data);
                 setLoading(false);
             });
         }
@@ -517,7 +579,7 @@ const TicketCard: React.FC<{ ticket: Ticket; event: Event }> = ({ ticket, event 
             </div>
             <div className="mt-4 pt-4 border-t border-gray-medium flex justify-between items-center">
                  <div className="text-xs text-gray-light">
-                    Purchased: {new Date(ticket.purchaseDate).toLocaleDateString()}<br/>
+                    Purchased: {new Date(ticket.createdAt).toLocaleDateString()}<br/>
                     For: {ticket.ownerEmail}
                 </div>
                 <CopyToClipboardButton textToCopy={`${window.location.origin}${window.location.pathname}#/ticket/${ticket.id}`} />
@@ -525,7 +587,7 @@ const TicketCard: React.FC<{ ticket: Ticket; event: Event }> = ({ ticket, event 
         </div>
         <div className="bg-dark p-6 flex flex-col items-center justify-center">
              <div className="bg-white p-2 rounded-md">
-                <QRCodeCanvas value={ticket.id} size={128} />
+                <QRCodeCanvas value={`${window.location.origin}${window.location.pathname}#/ticket/${ticket.id}`} size={128} />
              </div>
              <p className="text-xs text-gray-medium mt-2 break-all w-36 text-center">{ticket.id}</p>
         </div>
@@ -534,41 +596,23 @@ const TicketCard: React.FC<{ ticket: Ticket; event: Event }> = ({ ticket, event 
 
 
 const MyTicketsPage: React.FC = () => {
-    const { user, tickets, loading: userLoading } = useAppContext();
+    const { user, tickets, loading, sessionChecked } = useAppContext();
     const navigate = useNavigate();
-    const [events, setEvents] = useState<Event[]>([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user && !userLoading) {
+        if (sessionChecked && !user) {
             navigate('/');
         }
-    }, [user, userLoading, navigate]);
+    }, [user, sessionChecked, navigate]);
 
-    useEffect(() => {
-        setLoading(true);
-        api.fetchEvents().then(allEvents => {
-            setEvents(allEvents);
-            setLoading(false);
-        });
-    }, []);
-
-    const ticketsWithEvents = useMemo(() => {
-        return tickets.map(ticket => ({
-            ticket,
-            event: events.find(e => e.id === ticket.eventId)
-        })).filter(item => item.event);
-    }, [tickets, events]);
-
-
-    if (loading || userLoading) return <div className="h-[80vh]"><Spinner/></div>;
+    if (loading || !sessionChecked) return <div className="h-[80vh]"><Spinner/></div>;
     
     return (
         <div className="container mx-auto px-6 py-8 animate-fade-in">
              <h1 className="text-4xl font-extrabold text-white mb-8">My Tickets</h1>
-             {ticketsWithEvents.length > 0 ? (
+             {tickets.length > 0 ? (
                 <div className="space-y-6">
-                    {ticketsWithEvents.map(({ ticket, event }) => event && <TicketCard key={ticket.id} ticket={ticket} event={event} />)}
+                    {tickets.map(({ ticket, event }) => <TicketCard key={ticket.id} ticket={ticket} event={event} />)}
                 </div>
              ) : (
                 <div className="text-center py-16 bg-gray-dark rounded-lg">
@@ -585,23 +629,21 @@ const MyTicketsPage: React.FC = () => {
 };
 
 const UserDashboardPage: React.FC = () => {
-    const { user } = useAppContext();
+    const { user, sessionChecked } = useAppContext();
     const navigate = useNavigate();
-    const [fullName, setFullName] = useState(user?.fullName || '');
+    const [fullName, setFullName] = useState('');
 
     useEffect(() => {
-        if (!user) {
+        if (sessionChecked && !user) {
             navigate('/');
-        } else if (user.app_metadata.is_admin) {
+        } else if (sessionChecked && user?.isAdmin) {
             navigate('/admin');
+        } else if (user) {
+             setFullName(user.fullName);
         }
-    }, [user, navigate]);
-    
-    useEffect(() => {
-        setFullName(user?.fullName || '');
-    }, [user]);
+    }, [user, sessionChecked, navigate]);
 
-    if (!user) {
+    if (!user || !sessionChecked) {
         return <div className="h-[80vh]"><Spinner/></div>;
     }
 
@@ -626,11 +668,6 @@ const UserDashboardPage: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-light mb-2">Email</label>
                             <input type="email" value={user.email} disabled className="w-full bg-dark border border-gray-medium rounded-md p-3 text-gray-light cursor-not-allowed"/>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-light mb-2">New Password</label>
-                            <input type="password" placeholder="••••••••" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
-                            <p className="text-xs text-gray-medium mt-1">Leave blank to keep current password.</p>
-                        </div>
                     </div>
                     <div className="mt-8">
                         <button type="submit" className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 rounded-md transition-colors disabled:bg-gray-medium">
@@ -644,7 +681,7 @@ const UserDashboardPage: React.FC = () => {
 };
 
 const AdminDashboardPage: React.FC = () => {
-    const { user } = useAppContext();
+    const { user, sessionChecked } = useAppContext();
     const navigate = useNavigate();
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -655,13 +692,14 @@ const AdminDashboardPage: React.FC = () => {
     const [price, setPrice] = useState('');
     const [capacity, setCapacity] = useState('');
     const [tags, setTags] = useState('');
+    const [imageUrl, setImageUrl] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        if (!user || !user.app_metadata.is_admin) {
+        if (sessionChecked && (!user || !user.isAdmin)) {
             navigate('/');
         }
-    }, [user, navigate]);
+    }, [user, sessionChecked, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -669,15 +707,21 @@ const AdminDashboardPage: React.FC = () => {
         const newEventData = {
             title, description, date, location, category, organizer, 
             price: parseFloat(price),
-            imageUrl: `https://picsum.photos/seed/${encodeURIComponent(title)}/1600/900`,
+            imageUrl: imageUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/1600/900`,
             tags: tags.split(',').map(t => t.trim()).filter(Boolean),
             capacity: capacity ? parseInt(capacity, 10) : undefined,
         };
-        await api.createEvent(newEventData);
+        const createdEvent = await api.createEvent(newEventData as any);
         setIsSubmitting(false);
-        alert('Event created successfully!');
-        navigate('/');
+        if (createdEvent) {
+             alert('Event created successfully!');
+            navigate(`/event/${createdEvent.id}`);
+        } else {
+            alert('Failed to create event.');
+        }
     };
+    
+    if (!user || !sessionChecked) return <div className="h-[80vh]"><Spinner/></div>;
 
     return (
         <div className="container mx-auto px-6 py-8">
@@ -708,6 +752,10 @@ const AdminDashboardPage: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-light mb-2">Location</label>
                             <input type="text" value={location} onChange={e => setLocation(e.target.value)} required className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
                         </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-light mb-2">Image URL <span className="text-xs text-gray-medium">(optional)</span></label>
+                        <input type="text" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://example.com/image.png" className="w-full bg-dark border border-gray-medium rounded-md p-3 text-white focus:ring-2 focus:ring-primary"/>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div>
@@ -763,7 +811,7 @@ const ShareableTicketPage: React.FC = () => {
     }, [ticketId]);
 
     if (loading) return <div className="bg-dark h-screen"><Spinner /></div>;
-    if (!ticketData) return <NotFoundPage />; // Or a specific "Ticket not found" page
+    if (!ticketData) return <NotFoundPage />;
 
     const { ticket, event } = ticketData;
 
@@ -795,7 +843,7 @@ const ShareableTicketPage: React.FC = () => {
                     </div>
                      <div className="flex flex-col items-center">
                          <div className="bg-white p-3 rounded-lg">
-                            <QRCodeCanvas value={ticket.id} size={160} />
+                            <QRCodeCanvas value={`${window.location.origin}${window.location.pathname}#/ticket/${ticket.id}`} size={160} />
                          </div>
                          <p className="text-xs text-gray-medium mt-2 break-all w-40 text-center">{ticket.id}</p>
                     </div>
@@ -810,12 +858,20 @@ const ShareableTicketPage: React.FC = () => {
     );
 };
 
-const AppLayout: React.FC = () => (
-    <>
-        <Header />
-        <Outlet />
-    </>
-);
+const AppLayout: React.FC = () => {
+    const { sessionChecked } = useAppContext();
+    if (!sessionChecked) {
+        return <div className="bg-dark h-screen"><Spinner /></div>;
+    }
+    return (
+        <>
+            <Header />
+            <main className="flex-grow">
+                 <Outlet />
+            </main>
+        </>
+    );
+}
 
 
 const App: React.FC = () => {

@@ -1,15 +1,15 @@
+// The user object we'll use throughout the app context
+// It combines Supabase auth info with our custom 'profiles' table data
 export interface User {
   id: string;
   email: string;
   fullName: string;
-  // This structure mimics Supabase's user metadata
-  app_metadata: {
-    is_admin?: boolean;
-  };
+  isAdmin: boolean;
 }
 
 export interface Event {
   id: string;
+  createdAt: string;
   title: string;
   description: string;
   date: string;
@@ -28,5 +28,5 @@ export interface Ticket {
   eventId: string;
   userId: string | null; // Can be null for guest purchases
   ownerEmail: string;
-  purchaseDate: string;
+  createdAt: string;
 }
