@@ -22,14 +22,16 @@ const displayError = (title: string, message: string) => {
 // build process. If this code is running without a build step,
 // the application will fail to connect to Supabase.
 
-// FIX: Switched from Vite-specific `import.meta.env` to `process.env` to resolve TypeScript errors.
-// This change removes the need for `vite/client` types and Vite-specific environment checks.
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+// Attempt to read Supabase credentials from environment variables.
+// It checks for variables with the `VITE_` prefix (best practice for browser exposure)
+// and falls back to non-prefixed versions for flexibility.
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
 
 if (!supabaseUrl || !supabaseAnonKey) {
     const errorTitle = "Configuration Missing";
-    const errorMessage = "Supabase credentials are not set. Please ensure you have set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as environment variables in your project settings and have redeployed the site.";
+    const errorMessage = "Supabase credentials are not set. Please ensure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correctly defined as environment variables in your deployment settings and that the project has been redeployed.";
     displayError(errorTitle, errorMessage);
 }
 
