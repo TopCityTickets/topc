@@ -70,26 +70,30 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     let mounted = true;
+    let initialized = false;
 
     // Listen for auth state changes (login, logout)
     const unsubscribe = api.onAuthStateChange(async (updatedUser) => {
-      if (mounted && (!user || user?.id !== updatedUser?.id)) {
+      if (mounted) {
+        console.log('Auth state changed:', updatedUser?.email, 'isAdmin:', updatedUser?.isAdmin);
         setUser(updatedUser);
-        setSessionChecked(true);
+        if (!initialized) {
+          setSessionChecked(true);
+          initialized = true;
+        }
       }
     });
 
-    // Initial session check only if we don't have a user
-    if (!user) {
+    // Initial session check - only do this once
+    if (!sessionChecked) {
       api.getCurrentUser().then(initialUser => {
-        if (mounted && initialUser) {
+        if (mounted && !initialized) {
+          console.log('Initial user check:', initialUser?.email, 'isAdmin:', initialUser?.isAdmin);
           setUser(initialUser);
-        }
-      }).catch(console.error).finally(() => {
-        if (mounted) {
           setSessionChecked(true);
+          initialized = true;
         }
-      });
+      }).catch(console.error);
     }
     
     return () => {

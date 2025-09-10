@@ -89,6 +89,8 @@ export const fetchTicketsForUser = async (userId: string): Promise<{ticket: Tick
 // --- Auth & Profile Functions ---
 
 export const getAppUser = async (supabaseUser: SupabaseUser): Promise<User | null> => {
+    console.log('Fetching profile for user:', supabaseUser.id);
+    
     const { data: profile, error } = await supabase
         .from('profiles')
         .select('id, full_name, is_admin')
@@ -100,6 +102,8 @@ export const getAppUser = async (supabaseUser: SupabaseUser): Promise<User | nul
         return null;
     }
 
+    console.log('Profile found:', profile);
+    
     return {
         id: profile.id,
         email: supabaseUser.email!,
@@ -128,26 +132,35 @@ export const updateUserProfile = async (userId: string, updates: { full_name: st
 
 
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
+    let lastUserId: string | null = null;
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Supabase auth event:', event, 'session exists:', !!session);
+        
         if (session?.user) {
+            // Prevent duplicate calls for the same user
+            if (lastUserId === session.user.id) {
+                console.log('Skipping duplicate auth event for user:', session.user.id);
+                return;
+            }
+            lastUserId = session.user.id;
+            
             try {
                 const appUser = await getAppUser(session.user);
-                if (appUser) {
-                    callback(appUser);
-                } else {
-                    console.warn('User profile not found after sign in');
-                    callback({
-                        id: session.user.id,
-                        email: session.user.email!,
-                        fullName: null,
-                        isAdmin: false
-                    });
-                }
+                console.log('Got app user:', appUser?.email, 'isAdmin:', appUser?.isAdmin);
+                callback(appUser);
             } catch (error) {
                 console.error('Error getting user profile:', error);
-                callback(null);
+                // Fallback user object
+                callback({
+                    id: session.user.id,
+                    email: session.user.email!,
+                    fullName: null,
+                    isAdmin: false
+                });
             }
         } else {
+            lastUserId = null;
             callback(null);
         }
     });

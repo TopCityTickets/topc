@@ -17,8 +17,30 @@ export type Database = {
           capacity: number | null;
           tickets_sold: number;
         };
-        Insert: Omit<Database['public']['Tables']['events']['Row'], 'id' | 'created_at' | 'tickets_sold'>;
-        Update: Partial<Database['public']['Tables']['events']['Insert']>;
+        Insert: {
+          title: string;
+          description: string;
+          date: string;
+          location: string;
+          image_url: string;
+          category: string;
+          price: number;
+          organizer: string;
+          tags: string[];
+          capacity?: number | null;
+        };
+        Update: {
+          title?: string;
+          description?: string;
+          date?: string;
+          location?: string;
+          image_url?: string;
+          category?: string;
+          price?: number;
+          organizer?: string;
+          tags?: string[];
+          capacity?: number | null;
+        };
       };
       profiles: {
         Row: {
@@ -31,7 +53,10 @@ export type Database = {
           full_name?: string | null;
           is_admin?: boolean;
         };
-        Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Update: {
+          full_name?: string | null;
+          is_admin?: boolean;
+        };
       };
       tickets: {
         Row: {
@@ -40,10 +65,17 @@ export type Database = {
           user_id: string | null;
           owner_email: string;
           created_at: string;
-          events?: Event;  // For joined queries
         };
-        Insert: Omit<Database['public']['Tables']['tickets']['Row'], 'id' | 'created_at' | 'events'>;
-        Update: Partial<Database['public']['Tables']['tickets']['Insert']>;
+        Insert: {
+          event_id: string;
+          user_id?: string | null;
+          owner_email: string;
+        };
+        Update: {
+          event_id?: string;
+          user_id?: string | null;
+          owner_email?: string;
+        };
       };
     };
     Functions: {
@@ -53,7 +85,13 @@ export type Database = {
           p_user_id: string | null;
           p_owner_email: string;
         };
-        Returns: Database['public']['Tables']['tickets']['Row'];
+        Returns: {
+          id: string;
+          event_id: string;
+          user_id: string | null;
+          owner_email: string;
+          created_at: string;
+        };
       };
     };
     Views: Record<string, never>;
