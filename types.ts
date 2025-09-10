@@ -40,8 +40,9 @@ export type Database = {
           user_id: string | null;
           owner_email: string;
           created_at: string;
+          events?: Event;  // For joined queries
         };
-        Insert: Omit<Database['public']['Tables']['tickets']['Row'], 'id' | 'created_at'>;
+        Insert: Omit<Database['public']['Tables']['tickets']['Row'], 'id' | 'created_at' | 'events'>;
         Update: Partial<Database['public']['Tables']['tickets']['Insert']>;
       };
     };
@@ -55,6 +56,8 @@ export type Database = {
         Returns: Database['public']['Tables']['tickets']['Row'];
       };
     };
+    Views: Record<string, never>;
+    Enums: Record<string, never>;
   };
 };
 

@@ -129,10 +129,25 @@ export const updateUserProfile = async (userId: string, updates: { full_name: st
 
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-            const appUser = await getAppUser(session.user);
-            callback(appUser);
-        } else if (event === 'SIGNED_OUT') {
+        if (session?.user) {
+            try {
+                const appUser = await getAppUser(session.user);
+                if (appUser) {
+                    callback(appUser);
+                } else {
+                    console.warn('User profile not found after sign in');
+                    callback({
+                        id: session.user.id,
+                        email: session.user.email!,
+                        fullName: null,
+                        isAdmin: false
+                    });
+                }
+            } catch (error) {
+                console.error('Error getting user profile:', error);
+                callback(null);
+            }
+        } else {
             callback(null);
         }
     });

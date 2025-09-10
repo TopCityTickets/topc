@@ -438,12 +438,13 @@ const Header: React.FC = () => {
                     <button onClick={handleMyTicketsClick} className="text-gray-light hover:text-white transition-colors font-medium bg-transparent border-none p-0 cursor-pointer">My Tickets</button>
                     {user ? (
                         <>
-                            {user.isAdmin && (
+                            {user.isAdmin === true && (
                                 <Link to="/admin" className="text-gray-light hover:text-white transition-colors font-medium">Admin</Link>
                             )}
                             <div className="flex items-center gap-4">
                                <Link to="/dashboard" className="flex items-center gap-2 text-gray-light hover:text-white transition-colors font-medium">
-                                 <UserIcon className="w-5 h-5"/> {user.fullName.split(' ')[0]}
+                                 <UserIcon className="w-5 h-5"/> 
+                                 {user.fullName ? user.fullName.split(' ')[0] : user.email?.split('@')[0]}
                                </Link>
                                <button onClick={logout} className="bg-secondary text-white font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity">Logout</button>
                             </div>
