@@ -69,27 +69,27 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const currentUser = await api.getCurrentUser();
-        setUser(currentUser);
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        setUser(null);
-      } finally {
-        setSessionChecked(true);
-      }
-    };
-
-    initAuth();
+    let mounted = true;
 
     // Listen for auth state changes (login, logout)
-    const unsubscribe = api.onAuthStateChange((updatedUser) => {
-      setUser(updatedUser);
-      setSessionChecked(true);
+    const unsubscribe = api.onAuthStateChange(async (updatedUser) => {
+      if (mounted) {
+        setUser(updatedUser);
+        setSessionChecked(true);
+      }
+    });
+
+    // Initial session check
+    api.getCurrentUser().catch(console.error).finally(() => {
+      if (mounted) {
+        setSessionChecked(true);
+      }
     });
     
-    return () => unsubscribe();
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
