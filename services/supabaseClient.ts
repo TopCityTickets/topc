@@ -8,8 +8,9 @@ import { createClient } from '@supabase/supabase-js';
 // Attempt to read Supabase credentials from environment variables.
 // It checks for variables with the `VITE_` prefix (best practice for browser exposure)
 // and falls back to non-prefixed versions for flexibility.
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+// This also checks for a double `VITE_VITE_` prefix, which can happen with some CI/CD systems.
+const supabaseUrl = process.env.VITE_VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
 
 if (!supabaseUrl || !supabaseAnonKey) {
