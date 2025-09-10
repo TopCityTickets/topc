@@ -961,6 +961,7 @@ const App: React.FC = () => {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="/ticket/:ticketId" element={<ShareableTicketPage />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
           </Routes>
         </div>
       </AppProvider>
