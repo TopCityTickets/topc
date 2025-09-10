@@ -73,18 +73,24 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
     // Listen for auth state changes (login, logout)
     const unsubscribe = api.onAuthStateChange(async (updatedUser) => {
-      if (mounted) {
+      if (mounted && (!user || user?.id !== updatedUser?.id)) {
         setUser(updatedUser);
         setSessionChecked(true);
       }
     });
 
-    // Initial session check
-    api.getCurrentUser().catch(console.error).finally(() => {
-      if (mounted) {
-        setSessionChecked(true);
-      }
-    });
+    // Initial session check only if we don't have a user
+    if (!user) {
+      api.getCurrentUser().then(initialUser => {
+        if (mounted && initialUser) {
+          setUser(initialUser);
+        }
+      }).catch(console.error).finally(() => {
+        if (mounted) {
+          setSessionChecked(true);
+        }
+      });
+    }
     
     return () => {
       mounted = false;
